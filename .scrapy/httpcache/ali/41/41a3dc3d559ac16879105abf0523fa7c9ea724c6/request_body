@@ -1,0 +1,10 @@
+{
+    "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en",
+        "Authorization": "Basic dXNlcjp1c2VycGFzcw==",
+        "Referer": "https://www.aliexpress.com/item/32918112210.html",
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36"
+    },
+    "url": "https://aeproductsourcesite.alicdn.com/product/description/pc/v2/en_US/desc.htm?productId=32918112210&key=Hc0427083bfbf426ea298522ae56ded73g.zip&token=93d415e23627de50aae79070d96d86d2"
+}

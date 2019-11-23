@@ -1,0 +1,13 @@
+{
+    "cookies": [],
+    "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en",
+        "Authorization": "Basic dXNlcjp1c2VycGFzcw==",
+        "Cookie": "ali_apache_id=11.10.10.226.1574464281258.393119.2; xman_us_f=x_locale=en_US&x_l=0; acs_usuc_t=x_csrf=78gz399gtjh2&acs_rt=55b175b6ec9e443485af676e3f8f5445; intl_locale=en_US; aep_usuc_f=site=glo&c_tp=USD&region=US&b_locale=en_US; xman_t=34kbWuCUxF5WERbBc4tahHHpKGv0/vJFZO3AnsQ9KNFr2/Zw2ZfbFWC5UPXLTm49; intl_common_forever=3MY2Ii+iGWOa2SEgc2jyUSDx2LGCOBjN2qZMn1nnLTO6wZfZAqb+zg==; xman_f=Aq4gpLvlUbF/9xUxPPEV6q5Z636vGijt3dbNdvkJdSqA5TJMC/+6xnjo6L4eFGek4+Vyi02bfXb1ZRxYXWfuPzd/M5Np53DBuus8ZeWUvJGZ/iyQbg+Y3Q==",
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:25.0) Gecko/20100101 Firefox/25.0"
+    },
+    "lua_source": "\nfunction main(splash, args)\n  assert(splash:go(args.url))\n  local btn_close = splash:select(\"a.next-dialog-close\")\n  if btn_close ~= null then\n    btn_close:click()\n  end\n  assert(splash:wait(0.5))\n  return splash:html()\nend\n    ",
+    "url": "https://www.aliexpress.com/item/32918112210.html",
+    "wait": 0.5
+}

@@ -1,0 +1,1 @@
+{"error": 400, "type": "ScriptError", "description": "Error happened while executing Lua script", "info": {"source": "[string \"%0Afunction%20main%28splash%2C%20args%29%0A%2...\"]", "line_number": 1, "error": "unexpected symbol near '%'", "type": "LUA_INIT_ERROR", "message": "[string \"%0Afunction%20main%28splash%2C%20args%29%0A%2...\"]:1: unexpected symbol near '%'"}}
