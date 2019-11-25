@@ -1,6 +1,7 @@
 __pycache__/
 
 .vscode/
+.scrapy/
 build/
 dbs/
 eggs/

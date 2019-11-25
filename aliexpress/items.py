@@ -42,7 +42,7 @@ class AliexpressItem(scrapy.Item):
     # Tax_status = scrapy.Field()
     # Tax_class = scrapy.Field()
     # In_stock = scrapy.Field()
-    # Stock = scrapy.Field()
+    
     # Backorders_allowed = scrapy.Field()
     # Sold_individually = scrapy.Field()
     # Weight = scrapy.Field()
@@ -55,7 +55,7 @@ class AliexpressItem(scrapy.Item):
     # Shipping_class = scrapy.Field()
     # Download_limit = scrapy.Field()
     # Download_expiry_days = scrapy.Field()
-    # Parent = scrapy.Field()
+   
     # Grouped_products = scrapy.Field()
     # Upsells = scrapy.Field()
     # Cross_sells = scrapy.Field()
@@ -70,10 +70,12 @@ class AliexpressItem(scrapy.Item):
 
     Type = scrapy.Field()
     SKU = scrapy.Field()
+    Parent = scrapy.Field()
+    Stock = scrapy.Field()
 
-    attrs = scrapy.Field()
-    priceMap_regular = scrapy.Field()
-    priceMap_sale = scrapy.Field()
+    productSKUPropertyList = scrapy.Field()
+    skuPriceList = scrapy.Field()
+
 
 
     Attribute_1_name = scrapy.Field(

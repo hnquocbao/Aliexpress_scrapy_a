@@ -34,7 +34,7 @@ function main(splash, args)
   if btn_close ~= null then
     btn_close:click()
   end
-  assert(splash:wait(0.5))
+  assert(splash:wait(3))
   return splash:html()
 end
     '''
@@ -46,51 +46,54 @@ end
 
     def start_requests(self):
 
-        # excel_data_df = pandas.read_excel('do_go_ali.xlsx', sheet_name='Sheet1')
+        # urls = [
+        #     'https://www.aliexpress.com/item/32918112210.html',
+        #     'https://www.aliexpress.com/item/32971101049.html',
+        #     'https://www.aliexpress.com/item/32849564667.html',
+        # ]
 
-        # urls = excel_data_df['Link'].tolist()
-        urls = ['https://www.aliexpress.com/item/32971101049.html']
+        excel_data_df = pandas.read_excel('danh_sach_cac_sp_go.xls', sheet_name='Sheet1')
+        urls = excel_data_df['Link'].tolist()
         
         for url in urls:
            yield SplashRequest(
             url=url,
             callback=self.parse,
             endpoint='execute',
-            args={'wait':0.5,'lua_source':self.scripts}
-            # 'proxy':'http://woodenbe9:W@@denBe#@us-wa.proxymesh.com:31280'
+            args={'wait':3,'lua_source':self.scripts,'proxy':'http://thaohappy:1234567@us-wa.proxymesh.com:31280'},
+            dont_filter=True
         )
 
     def parse(self,response):
 
         # crawl despition and get url
-        javascript = response.xpath("//*[contains(text(),'window.runParams')]/text()").extract_first()
-        xml = lxml.etree.tostring(js2xml.parse(javascript), encoding='unicode')
-        selector = Selector(text=xml)
-        descriptionUrl = selector.xpath("//property[@name='descriptionUrl']/string/text()").get()
-        productId = selector.xpath("//property[@name='productId']/number/@value").get()
-
-        priceMap_regular = {}
-        priceMap_sale = {}
-        
-        skuPriceList = selector.xpath("//property[@name='skuPriceList']/array/object")
-        for i in range(len(skuPriceList)):
-            sku_name = ""
-            text = skuPriceList.xpath("//property[@name='skuAttr']/string/text()")[i].get()
-            text_0 = text.split("#")
-            text_1 = text_0[1].split(";")
-            sku_name = text_1[0]
-            sku_regular_price = skuPriceList.xpath("//property[@name='skuVal']/object/property[@name='skuAmount']/object/property[@name='value']/number/@value")[i].get()
-            sku_sale_price = skuPriceList.xpath("//property[@name='skuVal']/object/property[@name='skuActivityAmount']/object/property[@name='value']/number/@value")[i].get()
-            priceMap_regular[sku_name] = sku_regular_price
-            priceMap_sale[sku_name] = sku_sale_price
+        # javascript = response.xpath("//*[contains(text(),'window.runParams')]/text()").extract_first()
+        # xml = lxml.etree.tostring(js2xml.parse(javascript), encoding='unicode')
+        # selector = Selector(text=xml)
+        # descriptionUrl = selector.xpath("//property[@name='descriptionUrl']/string/text()").get()
+        # productId = selector.xpath("//property[@name='productId']/number/@value").get()
 
 
+        data = re.findall("data:(.+?),\n", response.body.decode("utf-8"), re.S)
+        json_data = json.loads(data[0])
+
+        descriptionUrl = json_data.get('descriptionModule').get('descriptionUrl')
+        productId = json_data.get('descriptionModule').get('productId')
+
+        productSKUPropertyList = json_data.get('skuModule').get('productSKUPropertyList')
+        skuPriceList = json_data.get('skuModule').get('skuPriceList')
+ 
 
         Name = response.xpath("//div[@class='product-title']/text()").extract_first()
-        Sale_price = response.xpath("//div[@class='product-price-current']//span[@class='product-price-value']/text()").extract_first()
-        Regular_price = response.xpath("//div[@class='product-price-original']//span[@class='product-price-value']/text()").extract_first()
         image_urls = response.xpath("//ul[@class='images-view-list']//img/@src").extract()
-        SKU = "Woodenbe_" + productId
+        SKU = "Woodenbe_" + str(productId)
+
+
+        try:
+            Sale_price = json_data.get('priceModule').get('formatedActivityPrice')
+        except :
+            Sale_price = ""
+        Regular_price = json_data.get('priceModule').get('formatedPrice')
 
 
         product = AliexpressItem()
@@ -99,34 +102,32 @@ end
         self.logger.info("Regular_price: %s parse", Regular_price)
         product['Regular_price'] = Regular_price if Regular_price else ""
         product['image_urls'] = image_urls if image_urls else []
-        product['Type'] = "variable"
         product['SKU'] = SKU
 
         
-        product['attrs']  = response.xpath("//div[@class='sku-property']")
-        product['priceMap_regular']  = priceMap_regular
-        product['priceMap_sale']  = priceMap_sale
+        product['productSKUPropertyList']  = productSKUPropertyList
+        product['skuPriceList']  = skuPriceList
+
 
         yield SplashRequest(
             url=descriptionUrl,
             callback=self.parse_detail,
             endpoint='render.html',
+            args={'wait':2,'proxy':'http://thaohappy:1234567@us-wa.proxymesh.com:31280'},
             meta={'product':product},
             dont_filter=True
         )
 
     def parse_detail(self,response):
         products = []
-
         p_product = response.meta['product']
-        attrs = p_product['attrs']
-        priceMap_sale = p_product['priceMap_sale']
-        priceMap_regular = p_product['priceMap_regular']
 
-      
+        productSKUPropertyList = p_product['productSKUPropertyList']
+        skuPriceList = p_product['skuPriceList']
+
         description = response.xpath("//body").extract_first()
 
-        loader_p = ItemLoader(item=AliexpressItem(),selector=attrs)
+        loader_p = ItemLoader(item=AliexpressItem())
         loader_p.add_value('SKU', p_product['SKU'])
         loader_p.add_value('Name', p_product['Name'])
         loader_p.add_value('Sale_price', p_product['Sale_price'])
@@ -134,115 +135,173 @@ end
         loader_p.add_value('image_urls',p_product['image_urls'])
         loader_p.add_value('Description',description)
 
-                    
-        Attribute_1_name = attrs.xpath("//div[@class='sku-property'][1]/div[@class='sku-title']/text()").extract_first()
-        loader_p.add_xpath('Attribute_1_name', "//div[@class='sku-property'][1]/div[@class='sku-title']/text()")
-        img_values_1 = set(attrs.xpath("//div[@class='sku-property'][1]/ul[@class='sku-property-list']/li/div/img/@title").extract())
-        string_values_1 = set(attrs.xpath("//div[@class='sku-property'][1]/ul/li/div/span/text()").extract())
-        if img_values_1 :
-            loader_p.add_value('Attribute_1_values',img_values_1)
-        elif string_values_1:
-            loader_p.add_value('Attribute_1_values',string_values_1)
-
-
-        Attribute_2_name = attrs.xpath("//div[@class='sku-property'][2]/div[@class='sku-title']/text()").extract_first()
-        loader_p.add_xpath('Attribute_2_name', "//div[@class='sku-property'][2]/div[@class='sku-title']/text()")
-        img_values_2 = set(attrs.xpath("//div[@class='sku-property'][2]/ul[@class='sku-property-list']/li/div/img/@title").extract())
-        string_values_2 = set(attrs.xpath("//div[@class='sku-property'][2]/ul/li/div/span/text()").extract())
+        SKUPropertyNames = {}
+        SKUPropertyValues = {}
+        SKUPropertyImgLinks = {}
+        Attribute_1_values = []
         Attribute_2_values = []
-        if img_values_2 :
-            loader_p.add_value('Attribute_2_values',img_values_2)
-            Attribute_2_values = img_values_2
-        elif string_values_2:
-            loader_p.add_value('Attribute_2_values',string_values_2)
-            Attribute_2_values = string_values_2
-
-        Attribute_3_name = attrs.xpath("//div[@class='sku-property'][3]/div[@class='sku-title']/text()").extract_first()
-        loader_p.add_xpath('Attribute_3_name', "//div[@class='sku-property'][3]/div[@class='sku-title']/text()")
-        img_values_3 = set(attrs.xpath("//div[@class='sku-property'][3]/ul[@class='sku-property-list']/li/div/img/@title").extract())
         Attribute_3_values = []
-        string_values_3 = set(attrs.xpath("//div[@class='sku-property'][3]/ul/li/div/span/text()").extract())
-        if img_values_3 :
-            loader_p.add_value('Attribute_3_values',img_values_3)
-            Attribute_3_values = img_values_3
-        elif string_values_3:
-            loader_p.add_value('Attribute_3_values',string_values_3)
-            Attribute_3_values = string_values_3
         
 
-        if img_values_1 or string_values_1 or img_values_2 or string_values_2 or img_values_3 or string_values_3 :
+        for Property in productSKUPropertyList:
+            SKUPropertyNames[Property.get('skuPropertyId')] = Property.get('skuPropertyName')
+            for value in Property.get('skuPropertyValues'):
+                SKUPropertyValues[value.get('propertyValueId')] = value.get('propertyValueDisplayName')
+                SKUPropertyImgLinks[value.get('propertyValueId')] = value.get('skuPropertyImagePath')
+
+        if productSKUPropertyList:
+            for item in productSKUPropertyList[0].get('skuPropertyValues'):
+                Attribute_1_values.append(item.get('propertyValueDisplayName'))
+                
+            Attribute_1_name = productSKUPropertyList[0].get('skuPropertyName')
             loader_p.add_value('Type', 'variable')
-        elif len(img_values_1) <= 1: 
+            loader_p.add_value('Attribute_1_name', Attribute_1_name)
+            loader_p.add_value('Attribute_1_values',Attribute_1_values)
+            ParentSKU = p_product['SKU']
+        else:
             loader_p.add_value('Type', 'simple')
+            ParentSKU = ""
+
+        if len(productSKUPropertyList) >= 2:
+            for item in productSKUPropertyList[1].get('skuPropertyValues'):
+                Attribute_2_values.append(item.get('propertyValueDisplayName'))
+                
+            Attribute_2_name = productSKUPropertyList[1].get('skuPropertyName')
+            loader_p.add_value('Attribute_2_name', Attribute_2_name)
+            loader_p.add_value('Attribute_2_values',Attribute_2_values)
+
+        if len(productSKUPropertyList) >= 3:
+            for item in productSKUPropertyList[2].get('skuPropertyValues'):
+                Attribute_3_values.append(item.get('propertyValueDisplayName'))
+            
+            Attribute_3_name = productSKUPropertyList[2].get('skuPropertyName')
+            loader_p.add_value('Attribute_3_name', Attribute_3_name)
+            loader_p.add_value('Attribute_3_values',Attribute_3_values)
 
         products.append(loader_p.load_item())
 
 
-        img_names = set(attrs.xpath("//div[@class='sku-property'][1]/ul/li[@class='sku-property-item']/div/img/@title").extract())
-        img_links = set(attrs.xpath("//div[@class='sku-property'][1]/ul/li[@class='sku-property-item']/div/img/@src").extract())
-        string_values = set(attrs.xpath("//div[@class='sku-property'][1]/ul/li[@class='sku-property-item']/div/span/text()").extract())
-        
-        attr_names = []
-        attr_values = []
-        if img_names and img_links:
-            attr_names = img_names
-            attr_values = img_links
-        elif string_values:
-            attr_names = string_values
+        for skuItem in skuPriceList:
+            skuAttr = skuItem.get('skuAttr')
+            attrs = skuAttr.split(";")
 
-        for index,attr_name in enumerate(attr_names,start=0):
+            attrs_1 = []
+            attrs_2 = []
+            attrs_3 = []
 
-            loader = ItemLoader(item=AliexpressItem(),selector=attrs)
-            loader.add_value('SKU',p_product['SKU'] + "-" + attr_name)
-            loader.add_value('Name', p_product['Name'] + "-" + attr_name)
-            loader.add_value('Sale_price', priceMap_sale[attr_name])
-            loader.add_value('Regular_price', priceMap_regular[attr_name] )
-            loader.add_value('image_urls',list(attr_values)[index])
+            attrs_1 = attrs[0].split(":")
+            attr_1_name = SKUPropertyNames[int(attrs_1[0])]
+            attr_1_value = ""
+            if "#" in attrs_1[1]:
+                temp = attrs_1[1].split("#")
+                attr_1_value_id = temp[0]
+                attr_1_value = SKUPropertyValues[int(attr_1_value_id)]
+            else:
+                attr_1_value = SKUPropertyValues[int(attrs_1[1])]
+                attr_1_value_id = int(attrs_1[1])
+            
+            attr_2_name = ""
+            attr_2_value = ""
+            if len(attrs) >=2 :
+                attrs_2 = attrs[1].split(":")
+                attr_2_name = SKUPropertyNames[int(attrs_2[0])]
+                if "#" in attrs_2[1]:
+                    temp = attrs_2[1].split("#")
+                    attr_2_value = SKUPropertyValues[int(temp[0])]
+                else:
+                    attr_2_value = SKUPropertyValues[int(attrs_2[1])]
+
+            attr_3_name = ""
+            attr_3_value = ""
+            if len(attrs) >= 3 :
+                attrs_3 = attrs[2].split(":")
+                attr_3_name = SKUPropertyNames[int(attrs_3[0])]
+                if "#" in attrs_3[1]:
+                    temp = attrs_3[1].split("#")
+                    attr_3_value = SKUPropertyValues[int(temp[0])]
+                else:
+                    attr_3_value = SKUPropertyValues[int(attrs_3[1])]
+
+            try:
+                salePrice = skuItem.get('skuVal').get('skuActivityAmount').get('value')
+            except :
+                salePrice = ""
+
+            try:
+                img_paths = SKUPropertyImgLinks[int(attr_1_value_id)]
+            except :
+                img_paths = ""
+
+            try:
+                stock = skuItem.get('skuVal').get('availQuantity')
+            except:
+                stock = ""
+
+            regularPrice = skuItem.get('skuVal').get('skuAmount').get('value')
+            
+
+            loader = ItemLoader(item=AliexpressItem())
+            loader.add_value('SKU',"W" + "-" + str(skuItem.get('skuId')))
+            loader.add_value('Name', p_product['Name'] + "-" + attr_1_value)
+            loader.add_value('Parent', ParentSKU)
+
+            loader.add_value('Sale_price', str(salePrice) if salePrice else "")
+            loader.add_value('Regular_price', str(regularPrice))
+            loader.add_value('Stock', str(stock))
+            loader.add_value('image_urls',img_paths)
             loader.add_value('Description',"")
             loader.add_value('Type','variation')
-            loader.add_value('Attribute_1_name', Attribute_1_name if Attribute_1_name else "")
-            loader.add_value('Attribute_1_values',attr_name)
+            loader.add_value('Attribute_1_name', attr_1_name)
+            loader.add_value('Attribute_1_values',attr_1_value)
             
-            if Attribute_2_name and Attribute_2_values:
-                loader.add_value('Attribute_2_name', Attribute_2_name if Attribute_2_name else "")
-                loader.add_value('Attribute_2_values',list(Attribute_2_values)[0]) #get 1st value of attribute 2
-            else:
-                loader.add_value('Attribute_2_name', "")
-                loader.add_value('Attribute_2_values',[]) #get 1st value of attribute 2
+            loader.add_value('Attribute_2_name', attr_2_name)
+            loader.add_value('Attribute_2_values',attr_2_value)
             
-            if Attribute_3_name and Attribute_3_values:
-                loader.add_value('Attribute_3_name', Attribute_3_name if Attribute_3_name else "")
-                loader.add_value('Attribute_3_values',list(Attribute_3_values)[0]) #get 1st value of attribute 2
-            else:
-                loader.add_value('Attribute_3_name', "")
-                loader.add_value('Attribute_3_values',[]) #get 1st value of attribute 3
+            loader.add_value('Attribute_3_name', attr_3_name)
+            loader.add_value('Attribute_3_values',attr_3_value)
             
             
             products.append(loader.load_item())
 
         for product in products:
-            
-            attribute_2_name = ""
-            attribute_2_values = []
-            attribute_3_name = ""
-            attribute_3_values = []
             try:
-                attribute_2_name = product['Attribute_2_name']
+                parent = product['Parent']
             except:
-                attribute_2_name = ""
+                parent = ""
             try:
-                attribute_3_name = product['Attribute_3_name']
+                stock = product['Stock']
             except:
-                attribute_3_name = ""
+                stock = ""
             try:
-                attribute_2_values = product['Attribute_2_values']
+                sale_price = product['Sale_price'] 
             except:
-                attribute_2_values = []
+                sale_price = ""
             try:
-                attribute_3_values = product['Attribute_3_values']
+                img_urls = product['image_urls']
             except:
-                attribute_3_values = []
+                img_urls = ""
 
+            try:
+                attr_name_2 = product["Attribute_2_name"]
+                attr_value_2 = product["Attribute_2_values"]
+                attr_visible_2 = "1"
+                attr_global_2 = "1"
+            except :
+                attr_name_2 = ""
+                attr_value_2 = ""
+                attr_visible_2 = ""
+                attr_global_2 = ""
+            try:
+                attr_name_3 = product["Attribute_3_name"]
+                attr_value_3 = product["Attribute_3_values"]
+                attr_visible_3 = "1"
+                attr_global_3 = "1"
+            except :
+                attr_name_3 = ""
+                attr_value_3 = ""
+                attr_visible_3 = ""
+                attr_global_3 = ""
+            
             yield {
                 'ID': "",
                 'Type': product['Type'],
@@ -258,24 +317,24 @@ end
                 'Tax status': "taxable",
                 'Tax class': "",
                 'In stock?': "1",
-                'Stock': "",
-                'Backorders allowed?': "0",
-                'Sold individually?': "0",
+                'Stock': stock,
+                'Backorders allowed?': "1",
+                'Sold individually?': "1",
                 'Weight (lbs)': "",
                 'Length (in)': "",
                 'Width (in)': "",
                 'Height (in)': "",
                 'Allow customer reviews?': "1",
                 'Purchase note': "",
-                'Sale price': product['Sale_price'],
+                'Sale price': sale_price,
                 'Regular price': product['Regular_price'],
                 'Categories': "",
                 'Tags': "",
                 'Shipping class': "",
-                'Images': product['image_urls'],
+                'Images': img_urls,
                 'Download limit': "",
                 'Download expiry days': "",
-                'Parent': "",
+                'Parent': parent,
                 'Grouped products': "",
                 'Upsells': "",
                 'Cross-sells': "",
@@ -286,14 +345,14 @@ end
                 'Attribute 1 value(s)':  product['Attribute_1_values'],
                 'Attribute 1 visible': "1",
                 'Attribute 1 global': "1",
-                'Attribute 2 name': attribute_2_name,
-                'Attribute 2 value(s)': attribute_2_values,
-                'Attribute 2 visible': "1",
-                'Attribute 2 global': "1",
-                'Attribute 3 name': attribute_3_name,
-                'Attribute 3 value(s)': attribute_3_values,
-                'Attribute 3 visible': "1",
-                'Attribute 3 global': "1",
+                'Attribute 2 name': attr_name_2,
+                'Attribute 2 value(s)': attr_value_2,
+                'Attribute 2 visible': attr_visible_2,
+                'Attribute 2 global': attr_global_2,
+                'Attribute 3 name': attr_name_3,
+                'Attribute 3 value(s)': attr_value_3,
+                'Attribute 3 visible': attr_visible_3,
+                'Attribute 3 global': attr_global_3,
                 'Meta: _wpcom_is_markdown': "1",
                 'Download 1 name': "",
                 'Download 1 URL': "",
